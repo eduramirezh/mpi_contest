@@ -20,6 +20,7 @@ class E_Ramirez():
         return result
 
     def sample_sort(self, elements, numberOfProcesses, s, m):
+        #firstly, get separators
         return elements
 
     def sparse_graph_sort(self, matrix, numberOfProcesses):
