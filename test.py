@@ -7,7 +7,7 @@ def test_bucket(numberOfProcesses, rank, numberOfElements):
     testInstance = E_Ramirez()
     if (rank == 0):
         start = time.clock()
-    testInstance.bucket_sort(np.random.randint(1,1000000,numberOfElements), numberOfProcesses, 1, 1000000)
+    testInstance.bucket_sort2(np.random.randint(1,1000000,numberOfElements), numberOfProcesses, 1, 1000000)
     if (rank == 0):
         end = time.clock()
         return '%.5f' % (end - start)
