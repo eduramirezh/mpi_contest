@@ -5,10 +5,10 @@ class E_Ramirez():
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
         if (rank == 0):
-            buckets = [[] for i in xrange(numberOfBuckets)]
-            fraction = (b-a)/numberOfBuckets
+            buckets = [[] for i in range(numberOfBuckets)]
+            fraction = int((b-a)/numberOfBuckets)
             for e in elements:
-                index = (e-a)/fraction
+                index = int((e-a)/fraction)
                 if ( index < numberOfBuckets):
                     buckets[index].append(e)
                 else:
@@ -19,7 +19,7 @@ class E_Ramirez():
         result = comm.gather(localArray, root=0)
         return result
 
-    def sample_sort(self, elements, numberOfProcesses):
+    def sample_sort(self, elements, numberOfProcesses, s, m):
         return elements
 
     def sparse_graph_sort(self, matrix, numberOfProcesses):

@@ -6,19 +6,19 @@ import time
 def test_bucket(numberOfProcesses, rank):
     testInstance = E_Ramirez()
     if (rank == 0):
-        print '1000 elements, ', numberOfProcesses, ' processes'
+        print('1000 elements, ', numberOfProcesses, ' processes')
         start = time.clock()
     testInstance.bucket_sort(np.random.randint(5000,30000,1000), numberOfProcesses, 5000, 30000)
     if (rank == 0):
         end = time.clock()
-        print end - start
+        print(end - start)
     if (rank == 0):
-        print '1000000 elements, ', numberOfProcesses, ' processes'
+        print('1000000 elements, ', numberOfProcesses, ' processes')
         start = time.clock()
     testInstance.bucket_sort(np.random.randint(5000,300000,1000000), numberOfProcesses, 5000, 30000)
     if (rank == 0):
         end = time.clock()
-        print end - start
+        print(end - start)
 
 def test_sample():
     pass

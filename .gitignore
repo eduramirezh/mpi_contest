@@ -1,2 +1,8 @@
 *.pyc
 npm-debug.log
+.Python
+bin
+include
+lib
+scripts
+__pycache__
