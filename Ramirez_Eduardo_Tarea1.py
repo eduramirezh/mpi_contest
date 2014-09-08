@@ -1,6 +1,7 @@
 from mpi4py import MPI
 import numpy
 import itertools
+import bisect
 
 def minmax(data):
     'Computes the minimum and maximum values in one-pass using only 1.5*len(data) comparisons'
@@ -34,52 +35,42 @@ class E_Ramirez():
         return result
 
 
-    def define_separators(self, elements, number_of_processes, s, m, comm):
+    def define_separators(self, data, n_samples, comm):
         rank = comm.Get_rank()
-        number_of_elements = len(elements)
-        last_rank = number_of_processes - 1
+        size = comm.Get_size()
         #every process gets an equal size subarray from where to get a sample
-        fraction = number_of_elements/number_of_processes
-        bottom = int(fraction * rank)
-        if (rank == last_rank):
-            top = number_of_elements
-        else:
-            top = int(fraction*(rank + 1))
-        num_elements_to_select = int(s/number_of_processes)
-        if(s%number_of_processes > rank):
+        num_elements_to_select = int(n_samples/size)
+        if(n_samples%size > rank):
             num_elements_to_select += 1
-        my_sample = numpy.random.choice(elements[bottom:top], num_elements_to_select, replace=False)
-        my_sample.sort()
-        comm.gather(my_sample, root=last_rank)
+        my_sample = numpy.random.choice(data, num_elements_to_select, replace=False)
+        my_sample = comm.gather(my_sample, root=0)
         #select m-1 separators
-        my_separators = []
-        if(rank == last_rank):
-            my_sample.sort()
-            sub_arrays = numpy.array_split(my_sample, m)
-            separators = [x[-1] for x in sub_arrays]
-            my_separators = [separators[-2], -1]
-            #send message to the rest of the processes
-            for i in range(last_rank):
-                if (i != 0):
-                    to_send = [separators[i-1], separators[i]]
-                else:
-                    to_send = [-1, separators[i]]
-                comm.send(to_send, dest=i)
-        else:
-            my_separators = comm.recv(source=last_rank)
-        return my_separators
+        separators = []
+        if(rank == 0):
+            my_sample = sorted([item for sublist in my_sample for item in sublist])
+            sub_arrays = numpy.array_split(my_sample, size)
+            separators = [x[-1] for x in sub_arrays[:-1]]
+        separators = comm.bcast(separators, root=0)
+        return separators
 
-    def sample_sort(self, elements, number_of_processes, s, m):
-        comm = MPI.COMM_WORLD
+    def sample_sort(self, data, n_samples, comm):
         rank = comm.Get_rank()
+        size = comm.Get_size()
         #firstly, get separators
-        my_separators = self.define_separators(elements, number_of_processes, s, m, comm)
+        separators = self.define_separators(data, n_samples, comm)
+        buckets = [[] for i in range(size)]
+        for d in data:
+            buckets[bisect.bisect(separators, d)].append(d)
         my_bucket = []
-        for e in elements:
-            if((e >= my_separators[0] or e == -1) and (e < my_separators[1] or my_separators[1] == -1)):
-                    my_bucket.append(e)
-        my_bucket.sort()
-        return comm.gather(my_bucket, root=0)
+        for s in range(size):
+            this_bucket = buckets[s]
+            this_bucket = comm.gather(this_bucket, root=s)
+            if rank == s:
+                my_bucket = sorted([item for sublist in this_bucket for item in sublist])
+        my_bucket = comm.gather(my_bucket, root=0)
+        if rank == 0:
+            my_bucket = [item for sublist in my_bucket for item in sublist]
+        return my_bucket
 
 
 
