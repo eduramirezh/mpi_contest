@@ -22,6 +22,7 @@ def test_bucket_all(number_of_processes, rank):
     results.append(test_bucket(number_of_processes, rank, 1000000))
     if (rank == 0):
         print(' '.join(results))
+
 def test_sample(number_of_processes, rank , number_of_elements, s, m):
     testInstance = E_Ramirez()
     if (rank == 0):
@@ -30,6 +31,17 @@ def test_sample(number_of_processes, rank , number_of_elements, s, m):
     if (rank == 0):
         end = time.clock()
         return '%.5f' % (end - start)
+
+def test_sample_all(number_of_processes, rank):
+    if(rank == 0):
+        print('Bucket ', number_of_processes, ' processes '),
+    results = []
+    results.append(test_sample(number_of_processes, rank, 1000, 100, 5))
+    results.append(test_bucket(number_of_processes, rank, 10000, 1000, 5))
+    results.append(test_bucket(number_of_processes, rank, 100000, 10000, 5))
+    results.append(test_bucket(number_of_processes, rank, 1000000, 100000))
+    if (rank == 0):
+        print(' '.join(results))
 
 def test_sparse():
     pass
