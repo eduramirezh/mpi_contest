@@ -2,6 +2,8 @@ from mpi4py import MPI
 import numpy
 import itertools
 import bisect
+import random
+from collections import deque
 
 def minmax(data):
     'Computes the minimum and maximum values in one-pass using only 1.5*len(data) comparisons'
@@ -53,33 +55,6 @@ class E_Ramirez():
         separators = comm.bcast(separators, root=0)
         return separators
 
-    def sample_sort(self, data, n_samples, comm):
-        rank = comm.Get_rank()
-        size = comm.Get_size()
-        #firstly, get separators
-        separators = self.define_separators(data, n_samples, comm)
-        buckets = [[] for i in range(size)]
-        for d in data:
-            buckets[bisect.bisect(separators, d)].append(d)
-        my_bucket = []
-        for s in range(size):
-            this_bucket = buckets[s]
-            this_bucket = comm.gather(this_bucket, root=s)
-            if rank == s:
-                my_bucket = sorted([item for sublist in this_bucket for item in sublist])
-        my_bucket = comm.gather(my_bucket, root=0)
-        if rank == 0:
-            my_bucket = [item for sublist in my_bucket for item in sublist]
-        return my_bucket
-
-
-
-    def sparse_graph_sort(self, matrix, numberOfProcesses):
-        return matrix
-
-    def shortest_path_sort(self, matrix, s, numberOfProcesses):
-        return matrix
-
     def bucket_sort(self, data, comm):
         a, b = self.get_global_minmax(data, comm)
         rank = comm.Get_rank()
@@ -103,5 +78,99 @@ class E_Ramirez():
             my_bucket = [item for sublist in my_bucket for item in sublist]
         return my_bucket
 
+    def sample_sort(self, data, n_samples, comm):
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+        #firstly, get separators
+        separators = self.define_separators(data, n_samples, comm)
+        buckets = [[] for i in range(size)]
+        for d in data:
+            buckets[bisect.bisect(separators, d)].append(d)
+        my_bucket = []
+        for s in range(size):
+            this_bucket = buckets[s]
+            this_bucket = comm.gather(this_bucket, root=s)
+            if rank == s:
+                my_bucket = sorted([item for sublist in this_bucket for item in sublist])
+        my_bucket = comm.gather(my_bucket, root=0)
+        if rank == 0:
+            my_bucket = [item for sublist in my_bucket for item in sublist]
+        return my_bucket
 
+
+
+    def sparse_graph_sort(self, vector, comm):
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+        neighbors = set()
+        for i in range(size):
+            if vector[i]:
+                neighbors.add(i)
+        finished_neighbors = set()
+        deltas = comm.gather(len(neighbors), root=0)
+        largest_delta = 0
+        if(rank == 0):
+            largest_delta = max(deltas)
+        largest_delta = comm.bcast(largest_delta, root=0)
+        two_delta = 2 * largest_delta
+        colors = [ 0 for i in range(size)]
+        final_nc = []
+        temporary_nc = []
+        my_final_color = -1
+        while my_final_color < 0:
+            temporary_nc = []
+            my_temp = random.randint(0, two_delta)
+            for i in neighbors:
+                comm.send(my_temp, dest=i, tag=0)
+            for i in (neighbors - finished_neighbors):
+                temporary_nc.append(comm.recv(source = i, tag = 0))
+            if my_temp not in (temporary_nc + final_nc):
+                my_final_color = my_temp
+                #send final
+        return colors
+
+    def update(self, data, vector, my_neighbors, comm):
+        queue = data[0]
+        visited = data[1]
+        cumulative = data[2]
+        rank = comm.Get_rank()
+        my_value = cumulative[rank]
+        for n in my_neighbors:
+            if n not in visited and n not in queue:
+                queue.append(n)
+            if cumulative[n] > my_value + vector[n]:
+                cumulative[n] = my_value + vector[n]
+        if len(queue) > 0:
+            next_node = queue.popleft()
+            visited.append(next_node)
+            comm.send((queue, visited, cumulative), dest = next_node, tag = 1)
+        else:
+            comm.send(cumulative, tag=2, dest=0 )
+        return cumulative
+
+    def shortest_path(self, vector, comm):
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+        my_neighbors = []
+        for i in range(size):
+            if vector[i] == 0:
+                vector[i] = 2147483647
+            else:
+                my_neighbors.append([vector[i],i])
+        my_neighbors.sort()
+        my_neighbors = [x for y, x in my_neighbors]
+        vector[rank] = 0
+        status = MPI.Status()
+        if rank == 0:
+            visited = [rank]
+            queue = deque()
+            queue.extend(my_neighbors)
+            next_node = queue.popleft()
+            visited.append(next_node)
+            to_send= queue, visited, vector
+            comm.send(to_send, dest = next_node, tag = 1)
+            vector = comm.recv(tag = 2,source=MPI.ANY_SOURCE, status=status )
+        else:
+            vector = self.update(comm.recv(tag=1, source=MPI.ANY_SOURCE, status=status), vector, my_neighbors, comm)
+        return vector
 
