@@ -9,6 +9,7 @@ def test_shortest():
     comm=MPI.COMM_WORLD
     rank=comm.Get_rank()
     size = comm.Get_size()
+    f = open('../oldest.txt', 'a')
 
     if rank==0:
         data = np.random.randint(size*2, size=(size, size))
@@ -32,11 +33,13 @@ def test_shortest():
         print('time: ', )
         print( '%.5f' % (end - start))
         real_result = scipy.sparse.csgraph.dijkstra(original, directed = False)[0]
+        f.write('%.5f' % (end - start) + '\n')
         passed = np.array_equal(result, real_result)
         print(real_result)
         print('passed: ', passed)
 
 if __name__=="__main__":
-    test_shortest()
+    for i in range(1000):
+        test_shortest()
 
 
