@@ -134,16 +134,20 @@ class E_Ramirez():
         visited = data[1]
         cumulative = data[2]
         rank = comm.Get_rank()
+        size = comm.Get_size()
         my_value = cumulative[rank]
         for n in my_neighbors:
-            if n not in visited and n not in queue:
-                queue.append(n)
+            if not visited[n] and not queue[n]:
+                queue[n] = True
             if cumulative[n] > my_value + vector[n]:
                 cumulative[n] = my_value + vector[n]
-        if len(queue) > 0:
-            queue.sort(reverse=True, key=lambda q: cumulative[q])
-            next_node = queue.pop()
-            visited.append(next_node)
+        next_node = -1
+        for i in range(size):
+            if queue[i] and (next_node == -1 or cumulative[i] < cumulative[next_node]):
+                next_node = i
+        if next_node > -1:
+            visited[next_node] = True
+            queue[next_node] = False
             comm.send((queue, visited, cumulative), dest = next_node, tag = 1)
         else:
             comm.send(cumulative, tag=2, dest=0 )
@@ -153,21 +157,25 @@ class E_Ramirez():
         rank = comm.Get_rank()
         size = comm.Get_size()
         my_neighbors = []
+        visited = numpy.array([False for i in range(size)], dtype=bool)
         for i in range(size):
             if vector[i] == 0:
                 vector[i] = 2147483647
             else:
-                my_neighbors.append([vector[i],i])
-        my_neighbors.sort(reverse = True)
-        my_neighbors = [x for y, x in my_neighbors]
+                my_neighbors.append(i)
         vector[rank] = 0
         status = MPI.Status()
         if rank == 0:
-            visited = [rank]
-            queue = []
-            queue.extend(my_neighbors)
-            next_node = queue.pop()
-            visited.append(next_node)
+            visited[rank] = True
+            queue = numpy.array([False for i in range(size)], dtype=bool)
+            for n in my_neighbors:
+                queue[n] = True
+                next_node = n
+            for i in range(size):
+                if queue[i] and vector[i] < vector[next_node]:
+                    next_node = i
+            visited[next_node] = True
+            queue[next_node] = False
             to_send= queue, visited, vector
             comm.send(to_send, dest = next_node, tag = 1)
             vector = comm.recv(tag = 2,source=MPI.ANY_SOURCE, status=status )
