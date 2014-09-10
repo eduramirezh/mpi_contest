@@ -141,7 +141,8 @@ class E_Ramirez():
             if cumulative[n] > my_value + vector[n]:
                 cumulative[n] = my_value + vector[n]
         if len(queue) > 0:
-            next_node = queue.popleft()
+            queue.sort(reverse=True, key=lambda q: cumulative[q])
+            next_node = queue.pop()
             visited.append(next_node)
             comm.send((queue, visited, cumulative), dest = next_node, tag = 1)
         else:
@@ -157,15 +158,15 @@ class E_Ramirez():
                 vector[i] = 2147483647
             else:
                 my_neighbors.append([vector[i],i])
-        my_neighbors.sort()
+        my_neighbors.sort(reverse = True)
         my_neighbors = [x for y, x in my_neighbors]
         vector[rank] = 0
         status = MPI.Status()
         if rank == 0:
             visited = [rank]
-            queue = deque()
+            queue = []
             queue.extend(my_neighbors)
-            next_node = queue.popleft()
+            next_node = queue.pop()
             visited.append(next_node)
             to_send= queue, visited, vector
             comm.send(to_send, dest = next_node, tag = 1)
