@@ -97,31 +97,48 @@ class E_Ramirez():
     def sparse_graph_coloring(self, vector, comm):
         rank = comm.Get_rank()
         size = comm.Get_size()
-        colors = []
         neighbors = []
-        finished_neighbors = {}
         neighbors_colors = {}
         for i in range(size):
-            if vector[i]:
+            if vector[i] and i != rank:
                 neighbors.append(i)
-                finished_neighbors[i] = False
                 neighbors_colors[i] = 0
-        deltas = [0 for i in range(size)]
-        deltas[rank] = len(neighbors)
-        deltas = comm.alltoall(sendobj=deltas)
+        my_delta = len(neighbors)
+        deltas = comm.allgather(sendobj=my_delta)
         largest_delta = max(deltas)
         finished = False
+        remaining_colors = set([i for i in range(largest_delta + 1)])
         my_color = numpy.random.randint(0, largest_delta + 1)
-        while not finished:
+        while True:
+            to_remove = []
             for i in range(size):
                 if rank == i:
-                    for n in neighbors:
-                        comm.send(my_color, dest=n)
+                    if finished:
+                        for n in neighbors:
+                            comm.send(None, dest=n)
+                    else:
+                        for n in neighbors:
+                            comm.send(my_color, dest=n)
                 elif i in neighbors:
-                    neighbors_colors[i] = comm.recv(source=i)
+                    received = comm.recv(source=i)
+                    if received != None:
+                        neighbors_colors[i] = received
+                    else:
+                        to_remove.append(i)
+            if finished:
+                break
+            else:
+                for r in to_remove:
+                    neighbors.remove(r)
             finished = True
-        colors = comm.gather(my_color, root=0)
-        return colors
+            for n in neighbors:
+                remaining_colors.discard(neighbors_colors[n])
+                has_bigger_delta = (deltas[n] > my_delta) or (deltas[n] == my_delta and n > rank)
+                if neighbors_colors[n] == my_color and has_bigger_delta:
+                    finished = False
+            if not finished:
+                my_color = remaining_colors.pop()
+        return comm.gather(my_color, root=0)
 
     def update(self, data, vector, my_neighbors, comm):
         queue = data[0]

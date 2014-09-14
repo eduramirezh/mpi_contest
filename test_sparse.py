@@ -2,7 +2,6 @@ from mpi4py import MPI
 from Ramirez_Eduardo_Tarea1 import E_Ramirez
 import time
 import numpy as np
-import scipy.sparse.csgraph
 
 
 def test_sparse():
@@ -27,11 +26,16 @@ def test_sparse():
     result = yourobject.sparse_graph_coloring(data, comm)
     if rank == 0:
         end = time.clock()
-        print(result)
-        print('time: ', )
-        print( '%.5f' % (end - start))
+        passed = True
+        for i in range(size):
+            current_color = result[i]
+            for j in range(size):
+                if original[i][j] and current_color == result[j]:
+                    passed = False
+        print('passed: ', passed)
+        print('time: ','%.5f' % (end - start))
+
 
 if __name__=="__main__":
-    test_sparse()
-
-
+    for i in range(1000):
+        test_sparse()
