@@ -5,4 +5,5 @@ bin
 include
 lib
 scripts
+.DS_Store
 __pycache__
