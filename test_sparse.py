@@ -5,14 +5,12 @@ import numpy as np
 import scipy.sparse.csgraph
 
 
-def test_shortest():
+def test_sparse():
     comm=MPI.COMM_WORLD
     rank=comm.Get_rank()
     size = comm.Get_size()
-    f = open('../oldest.txt', 'a')
-
     if rank==0:
-        data = np.random.randint(size*2, size=(size, size))
+        data = np.ndarray(shape=(size, size), dtype=bool)
         for i in range(size):
             for j in range(i + 1):
                 if i == j:
@@ -26,20 +24,14 @@ def test_shortest():
     if rank == 0:
         start = time.clock()
 
-    result = yourobject.shortest_paths(data, comm)
+    result = yourobject.sparse_graph_coloring(data, comm)
     if rank == 0:
         end = time.clock()
         print(result)
         print('time: ', )
         print( '%.5f' % (end - start))
-        real_result = scipy.sparse.csgraph.dijkstra(original, directed = False)[0]
-        f.write('%.5f' % (end - start) + '\n')
-        passed = np.array_equal(result, real_result)
-        print(real_result)
-        print('passed: ', passed)
 
 if __name__=="__main__":
-    for i in range(1000):
-        test_shortest()
+    test_sparse()
 
 

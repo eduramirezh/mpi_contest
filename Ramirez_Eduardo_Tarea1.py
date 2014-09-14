@@ -2,8 +2,6 @@ from mpi4py import MPI
 import numpy
 import itertools
 import bisect
-import random
-from collections import deque
 
 def minmax(data):
     'Computes the minimum and maximum values in one-pass using only 1.5*len(data) comparisons'
@@ -19,7 +17,7 @@ def minmax(data):
             lo = x
         if y > hi:
             hi = y
-    return lo, hi
+    return [lo, hi]
 
 
 class E_Ramirez():
@@ -30,9 +28,7 @@ class E_Ramirez():
         boundaries = comm.gather(boundaries, root=0)
         result = []
         if rank == 0:
-            min_list, max_list = zip(*boundaries)
-            result.append(min(min_list))
-            result.append(max(max_list))
+            result = minmax(itertools.chain.from_iterable(boundaries))
         result = comm.bcast(result, root=0)
         return result
 
@@ -49,7 +45,7 @@ class E_Ramirez():
         #select m-1 separators
         separators = []
         if(rank == 0):
-            my_sample = sorted([item for sublist in my_sample for item in sublist])
+            my_sample = sorted(itertools.chain.from_iterable(my_sample))
             sub_arrays = numpy.array_split(my_sample, size)
             separators = [x[-1] for x in sub_arrays[:-1]]
         separators = comm.bcast(separators, root=0)
@@ -72,10 +68,10 @@ class E_Ramirez():
             this_bucket = buckets[s]
             this_bucket = comm.gather(this_bucket, root=s)
             if rank == s:
-                my_bucket = sorted([item for sublist in this_bucket for item in sublist])
+                my_bucket = sorted(itertools.chain.from_iterable(this_bucket))
         my_bucket = comm.gather(my_bucket, root=0)
         if rank == 0:
-            my_bucket = [item for sublist in my_bucket for item in sublist]
+            my_bucket = list(itertools.chain.from_iterable(my_bucket))
         return my_bucket
 
     def sample_sort(self, data, n_samples, comm):
@@ -91,42 +87,40 @@ class E_Ramirez():
             this_bucket = buckets[s]
             this_bucket = comm.gather(this_bucket, root=s)
             if rank == s:
-                my_bucket = sorted([item for sublist in this_bucket for item in sublist])
+                my_bucket = sorted(itertools.chain.from_iterable(this_bucket))
         my_bucket = comm.gather(my_bucket, root=0)
         if rank == 0:
-            my_bucket = [item for sublist in my_bucket for item in sublist]
+            my_bucket = list(itertools.chain.from_iterable(my_bucket))
         return my_bucket
 
 
-
-    def sparse_graph_sort(self, vector, comm):
+    def sparse_graph_coloring(self, vector, comm):
         rank = comm.Get_rank()
         size = comm.Get_size()
-        neighbors = set()
+        colors = []
+        neighbors = []
+        finished_neighbors = {}
+        neighbors_colors = {}
         for i in range(size):
             if vector[i]:
-                neighbors.add(i)
-        finished_neighbors = set()
-        deltas = comm.gather(len(neighbors), root=0)
-        largest_delta = 0
-        if(rank == 0):
-            largest_delta = max(deltas)
-        largest_delta = comm.bcast(largest_delta, root=0)
-        two_delta = 2 * largest_delta
-        colors = [ 0 for i in range(size)]
-        final_nc = []
-        temporary_nc = []
-        my_final_color = -1
-        while my_final_color < 0:
-            temporary_nc = []
-            my_temp = random.randint(0, two_delta)
-            for i in neighbors:
-                comm.send(my_temp, dest=i, tag=0)
-            for i in (neighbors - finished_neighbors):
-                temporary_nc.append(comm.recv(source = i, tag = 0))
-            if my_temp not in (temporary_nc + final_nc):
-                my_final_color = my_temp
-                #send final
+                neighbors.append(i)
+                finished_neighbors[i] = False
+                neighbors_colors[i] = 0
+        deltas = [0 for i in range(size)]
+        deltas[rank] = len(neighbors)
+        deltas = comm.alltoall(sendobj=deltas)
+        largest_delta = max(deltas)
+        finished = False
+        my_color = numpy.random.randint(0, largest_delta + 1)
+        while not finished:
+            for i in range(size):
+                if rank == i:
+                    for n in neighbors:
+                        comm.send(my_color, dest=n)
+                elif i in neighbors:
+                    neighbors_colors[i] = comm.recv(source=i)
+            finished = True
+        colors = comm.gather(my_color, root=0)
         return colors
 
     def update(self, data, vector, my_neighbors, comm):
@@ -149,13 +143,13 @@ class E_Ramirez():
             comm.send(cumulative, tag=2, dest=0 )
         return cumulative
 
-    def shortest_path(self, vector, comm):
+    def shortest_paths(self, vector, comm):
         rank = comm.Get_rank()
         size = comm.Get_size()
         my_neighbors = []
         for i in range(size):
             if vector[i] == 0:
-                vector[i] = 2147483647
+                vector[i] = 9223372036854775807
             else:
                 my_neighbors.append([vector[i],i])
         my_neighbors.sort(reverse = True)
